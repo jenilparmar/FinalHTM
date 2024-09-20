@@ -1,6 +1,4 @@
-Here's the entire formatted README content for you to copy and paste:
 
----
 
 # Project Setup Instructions
 
