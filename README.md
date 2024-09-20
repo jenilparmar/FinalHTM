@@ -49,9 +49,7 @@
 
 Everything is set up now. Let’s build something amazing together! 🚀
 
----
 
-Feel free to copy this entire block into your `README.md` file! Let me know if you'd like any further customization.
 
 
 
