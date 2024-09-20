@@ -30,13 +30,13 @@ def get_random_questions(exam_type):
     
     try:
         if exam_type == 'jee':
-            # Load the CSV files for JEE
+ 
             chem_df = pd.read_csv(r'csvFiles\Jee_chem.csv')
             phy_df = pd.read_csv(r'csvFiles\Jee_physics.csv')
             math_df = pd.read_csv(r'csvFiles\Final_Maths_Jee.csv')
             question_files = [chem_df, phy_df, math_df]
         elif exam_type == 'neet':
-            # Load the CSV files for NEET
+
             bio_df = pd.read_csv(r'csvFiles\Neet_BIo.csv')
             phy_df1 = pd.read_csv(r'csvFiles\Neet_phy.csv')
             chem_df1 = pd.read_csv(r'csvFiles\Neet_chem.csv')
@@ -44,7 +44,6 @@ def get_random_questions(exam_type):
         else:
             return None, None
 
-        # Select one random question from each file
         questions = []
         solutions = []
         for df in question_files:
@@ -53,7 +52,7 @@ def get_random_questions(exam_type):
                 continue
 
             try:
-                # Randomly select a question
+                
                 selected_row = df.sample(1).iloc[0]
                 if exam_type == 'jee':
                     if df.equals(math_df):
