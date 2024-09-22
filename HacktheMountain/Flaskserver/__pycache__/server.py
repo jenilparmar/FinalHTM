@@ -233,5 +233,40 @@ def extracted_text():
         # Log and return any errors that occur
         print("Error in text extraction:", e)
         return jsonify({"error": "Failed to extract text"}), 500
+    
+@app.route('/random-questions', methods=['GET'])
+def get_50_random_questions():
+    try:
+        # Load the CSV file for random questions
+        test_df = pd.read_csv(r'csvFiles\Maths_tests.csv')
+
+        # Check if there are enough questions
+        if len(test_df) < 30:  # Reduce to 10 for smaller size
+            return jsonify({"error": "Not enough questions available"}), 400
+        
+        # Randomly select 10 unique questions
+        random_questions = test_df.sample(n=30).to_dict(orient='records')
+
+        # Limit the response to image fields only
+        simplified_questions = [
+            {
+                "_id": q["_id"],
+                "image": q["image"],
+                "ans": q["ans"]
+            }
+            for q in random_questions
+        ]
+
+        # Return the data as a JSON response
+        return jsonify({
+            "questions": simplified_questions,
+            "total_questions": len(simplified_questions),
+        }), 200
+
+    except Exception as e:
+        print(f"Error in /random-questions route: {e}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+    
 if __name__ == '__main__':
     app.run(debug=True)
