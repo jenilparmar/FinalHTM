@@ -233,12 +233,12 @@ def extracted_text():
         print("Error in text extraction:", e)
         return jsonify({"error": "Failed to extract text"}), 500
     
-@app.route('/random-questions', methods=['POST'])
+@app.route('/Jee-test', methods=['POST'])
 def get_30_random_questions():
     try:
         data = request.json
         subject = data['Subject']
-        test_df = pd.read_csv(rf'csvFiles\FinalTest{subject}.csv')
+        test_df = pd.read_csv(rf'HacktheMountain\csvFiles\FinalTest{subject}.csv')
 
         # Check if there are enough questions
         if len(test_df) < 30:  # Reduce to 10 for smaller size
@@ -266,6 +266,43 @@ def get_30_random_questions():
         print(f"Error in /random-questions route: {e}")
         return jsonify({"error": "An unexpected error occurred"}), 500
 
-    
+@app.route('/Neet-test', methods=['POST'])
+def get_random_questions():
+    try:
+        data = request.json
+        subject = data['Subject']
+        page = int(data.get('page', 1))  # Default to page 1
+        questions_per_page = 25  # Number of questions per page
+        
+        test_df = pd.read_csv(rf'HacktheMountain\csvFiles\FinalTest{subject}.csv')
+
+        if len(test_df) < questions_per_page * page:
+            return jsonify({"error": "Not enough questions available"}), 400
+
+        # Randomly shuffle the dataframe
+        shuffled_df = test_df.sample(frac=1).reset_index(drop=True)
+
+        # Get the specific page of questions
+        start = (page - 1) * questions_per_page
+        end = start + questions_per_page
+        random_questions = shuffled_df.iloc[start:end].to_dict(orient='records')
+
+        simplified_questions = [
+            {
+                "image": q["image"],  # Consider sending image URLs instead of base64-encoded images to save space
+                "ans": q["ans"]
+            }
+            for q in random_questions
+        ]
+
+        return jsonify({
+            "questions": simplified_questions,
+            "total_questions": len(simplified_questions),
+        }), 200
+
+    except Exception as e:
+        print(f"Error in /random-questions route: {e}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
