@@ -1,14 +1,549 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from chemNEETData import chem_NEET_data
 from phyNEETData import phy_NEET_data
 from bioNEET import bio_data
 from phyData import phy_data
 from chemData import chem_data
 from methsData import MathsData
-from flask_cors import CORS
 from highLight import highLight
 from basetoimage import main
-import base64 
+from textextract import TextExtractor, OS
+from PIL import Image
+from pytesseract import pytesseract
+import base64
+import io
+import os
+import json
+import pandas as pd
+import numpy as np
+import fitz
+import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+def fix_base64_padding(base64_string: str) -> str:
+    """Add padding to the base64 string if necessary."""
+    missing_padding = len(base64_string) % 4
+    if missing_padding:
+        base64_string += '=' * (4 - missing_padding)
+    return base64_string
+
+def decode_base64_to_image(base64_string: str, output_path: str) -> None:
+    """Decode a base64 string and save it as an image file."""
+    try:
+        # Remove the data URI scheme part if present
+        if base64_string.startswith('data:image'):
+            base64_string = base64_string.split(',')[1]
+        
+        # Fix base64 padding
+        base64_string = fix_base64_padding(base64_string)
+        
+        # Print the cleaned base64 string for debugging
+        print(f"Base64 string after removing prefix: {base64_string[:30]}...")
+
+        # Decode the base64 string
+        image_data = base64.b64decode(base64_string)
+        
+        # Convert binary data to an image
+        image = Image.open(io.BytesIO(image_data))
+        
+        # Save the image to a file
+        image.save(output_path)
+        print(f"Image saved successfully at {output_path}")
+    except Exception as e:
+        print(f"Error decoding or saving image: {e}")
+
+def main(base64_string: str) -> str:
+    # Path where the decoded image will be saved
+    image_path = 's1.png'
+    
+    # Decode the base64 string and save the image
+    decode_base64_to_image(base64_string, image_path)
+    
+    # Check if the image was saved correctly
+    if not os.path.exists(image_path):
+        print(f"Error: Image not found at {image_path}")
+        return ""
+    
+    # Create an instance of TextExtractor
+    extractor = TextExtractor(os_type=OS.Window)
+   
+    # Extract text from the image
+    try:
+        extracted_text = extractor.extract_text(image_path)
+        if not isinstance(extracted_text, str):
+            extracted_text = str(extracted_text)
+    except Exception as e:
+        print(f"Error extracting text: {e}")
+        return ""
+    
+    # Optionally, clean up the image file after processing
+    if os.path.exists(image_path):
+        os.remove(image_path)
+    
+    return extracted_text
+
+def bio_data(file , paragraph):
+   
+
+    # Load the CSV file
+    df = pd.read_csv(file)
+    
+    # Extract necessary columns
+    questions = df['question']
+    images = df['image']
+    answers = df['ans']
+  
+
+    # Preprocess the input text and questions
+    def preprocess(text):
+        tokens = nltk.word_tokenize(text)
+        return ' '.join(tokens)
+
+    preprocessed_questions = [preprocess(str(question)) for question in questions]
+    preprocessed_paragraph = preprocess(paragraph)
+
+    # Calculate TF-IDF vectors and cosine similarity
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(preprocessed_questions + [preprocessed_paragraph])
+    similarity_matrix = cosine_similarity(vectors[-1], vectors[:-1])
+
+    # Sort and filter the results based on the similarity scores
+    threshold = 0.2 
+    sorted_indices = similarity_matrix[0].argsort()[::-1]
+    sorted_questions = [(i, questions[i], similarity_matrix[0][i]) for i in sorted_indices]
+
+    top_n = 10
+    response = {}
+    suggestions = []
+    
+    # Prepare the response with the top N suggestions including question, image, and answer
+    for i, (index, question, score) in enumerate(sorted_questions[:top_n], 1):
+        if score > threshold:
+            suggestions.append({
+                "question": question,
+                "ans": answers[index],
+                "image": images[index]
+            })
+
+    # Return the suggestions or a message if no relevant data is found
+    if suggestions:
+        response['suggestions'] = suggestions
+    else:
+        response['message'] = "No related data found"
+
+    return jsonify(response)
+
+def chem_data(file , paragraph):
+    print(paragraph)
+
+    # Load the CSV file
+    df = pd.read_csv(file)
+    
+    # Extract necessary columns
+    questions = df['question']
+    images = df['image']
+    answers = df['ans']
+    
+
+    # Preprocess the input text and questions
+    def preprocess(text):
+        tokens = nltk.word_tokenize(text)
+        return ' '.join(tokens)
+
+    preprocessed_questions = [preprocess(str(question)) for question in questions]
+    preprocessed_paragraph = preprocess(paragraph)
+
+    # Calculate TF-IDF vectors and cosine similarity
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(preprocessed_questions + [preprocessed_paragraph])
+    similarity_matrix = cosine_similarity(vectors[-1], vectors[:-1])
+
+    # Sort and filter the results based on the similarity scores
+    threshold = 0.2 
+    sorted_indices = similarity_matrix[0].argsort()[::-1]
+    sorted_questions = [(i, questions[i], similarity_matrix[0][i]) for i in sorted_indices]
+
+    top_n = 10
+    response = {}
+    suggestions = []
+    
+    # Prepare the response with the top N suggestions including question, image, and answer
+    for i, (index, question, score) in enumerate(sorted_questions[:top_n], 1):
+        if score > threshold:
+            suggestions.append({
+                "question": question,
+                "score": score,
+                "ans": answers[index],
+                "image": images[index]
+            })
+
+    # Return the suggestions or a message if no relevant data is found
+    if suggestions:
+        response['suggestions'] = suggestions
+    else:
+        response['message'] = "No related data found"
+
+    return jsonify(response)
+
+def chem_NEET_data(file , paragraph):
+ 
+
+    # Load the CSV file
+    df = pd.read_csv(file)
+    
+    # Extract necessary columns()
+    questions = df['question'].tolist()
+    images = df['image'].tolist()
+    answers = df['ans'].tolist()
+   
+    # Preprocess the input text and questions
+    def preprocess(text):
+        tokens = nltk.word_tokenize(text)
+        return ' '.join(tokens)
+
+    preprocessed_questions = [preprocess(str(question)) for question in questions]
+    preprocessed_paragraph = preprocess(paragraph)
+
+    # Calculate TF-IDF vectors and cosine similarity
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(preprocessed_questions + [preprocessed_paragraph])
+    similarity_matrix = cosine_similarity(vectors[-1], vectors[:-1])
+
+    # Sort and filter the results based on the similarity scores
+    threshold = 0.2 
+    sorted_indices = similarity_matrix[0].argsort()[::-1]
+    sorted_questions = [(i, questions[i], similarity_matrix[0][i]) for i in sorted_indices]
+
+    top_n = 10
+    response = {}
+    suggestions = []
+    
+    # Prepare the response with the top N suggestions including question, image, and answer
+    for i, (index, question, score) in enumerate(sorted_questions[:top_n], 1):
+        if score > threshold:
+            suggestions.append({
+                "question": question,
+                "score": score,
+                "ans": answers[index],
+                "image": images[index]
+            })
+
+    # Return the suggestions or a message if no relevant data is found
+    if suggestions:
+        response['suggestions'] = suggestions
+    else:
+        response['message'] = "No related data found"
+
+    return jsonify(response)
+
+def highLight(file , page_number):
+ 
+    
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    if file and file.filename.endswith('.pdf'):
+        # Open the PDF file
+        doc = fitz.open(stream=file.read(), filetype="pdf")
+
+        # Check if the requested page number is valid
+        if page_number < 0 or page_number >= len(doc):
+            return jsonify({'error': 'Invalid page number'}), 400
+
+        # Extract the text from the specified page
+        page = doc[page_number-1]
+        extracted_text = page.get_text()
+        summarized_text = summarize_paragraph(extracted_text)
+
+        # Highlight the summarized text on the PDF page and get the base64 image
+        highlighted_image = image_extractor(summarized_text, page)
+
+        return jsonify({
+            'message': 'File uploaded and processed successfully',
+            'highlighted_image': highlighted_image
+        }), 200
+
+    return jsonify({'error': 'Invalid file type'}), 400
+
+
+def normalize_color(color):
+    return tuple(c / 255.0 for c in color)
+UPLOAD_FOLDER = 'uploads'
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+def image_to_base64_converter(image_path):
+    """Convert an image file to a base64 string."""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
+def image_extractor(array_of_text_to_highlight, page):
+    # Highlight color: Purple (R: 128, G: 0, B: 128)
+    highlight_color = normalize_color((255, 128, 64))
+
+    for text_to_highlight in array_of_text_to_highlight:
+        text_instances = page.search_for(text_to_highlight)
+
+        for inst in text_instances:
+            highlight = page.add_highlight_annot(inst)
+            highlight.set_colors(stroke=highlight_color)
+            highlight.update()
+
+    # Generate a pixmap of the page after highlighting
+    pix = page.get_pixmap()
+
+    # Save the image to a temporary file
+    output_image_path = os.path.join(UPLOAD_FOLDER, 'highlighted_page.png')
+    pix.save(output_image_path)
+
+    # Convert the saved image to a base64 string
+    base64_image = image_to_base64_converter(output_image_path)
+    
+    # Clean up the temporary image file
+    os.remove(output_image_path)
+
+    return base64_image
+keywords = [
+    "is defined as","it depends on","perpendicular", "refers to", "can be described as", "known as", 
+    "means", "is characterized by", "is identified by", "property", 
+    "concept", "principle","named reaction","causes", "phenomenon", "law", "rule", 
+    "theory", "axiom", "postulate", "term", "equals", 
+    "is equivalent to", "expression", "equation", "formula", 
+    "constant", "variable", "coefficient", "factor", "derivative", 
+    "integral", "product", "sum", "difference", "quotient", 
+    "function", "inverse", "ratio", "proportion", "relation", 
+    "square root", "cube root", "logarithm", "exponent", "power"
+]
+def summarize_paragraph(paragraph):
+    # Tokenize the paragraph into sentences
+    sentences = sent_tokenize(paragraph)
+    
+    # Define stop words
+    stop_words = set(stopwords.words('english'))
+    
+    # Create a set of keywords for quick lookup
+    keyword_set = set(keyword.lower() for keyword in keywords)
+    
+    # Tokenize and clean sentences
+    cleaned_sentences = []
+    for sentence in sentences:
+        words = word_tokenize(sentence.lower())
+        filtered_words = [word for word in words if word.isalnum() and word not in stop_words]
+        cleaned_sentences.append(filtered_words)
+    
+    # Extract sentences that contain any of the keywords
+    relevant_sentences = [
+        sentence for sentence, words in zip(sentences, cleaned_sentences)
+        if keyword_set.intersection(words)
+    ]
+    print((relevant_sentences))
+    return relevant_sentences
+
+
+def check_paragraph_similarity(paragraph, df):
+
+    vectorizer = TfidfVectorizer()
+
+    documents = [paragraph] + df['Tokens'].tolist()
+
+    tfidf_matrix = vectorizer.fit_transform(documents)
+
+    cosine_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:])
+
+    most_similar_index = cosine_similarities.argmax()
+    most_similar_score = cosine_similarities[0][most_similar_index]
+
+    most_similar_chapter = df.iloc[most_similar_index]['chapter']
+    
+    return most_similar_chapter, most_similar_score
+
+def MathsData(paragraph, TotalMathsMergedData, quetionsFile, formOfDocument):
+    if formOfDocument == 0:
+        df = pd.read_csv(TotalMathsMergedData)
+        df['Tokens'] = df['Tokens'].astype(str)
+        most_similar_chapter, similarity_score = check_paragraph_similarity(paragraph, df)
+
+        if similarity_score > 0.5:
+            print(f"The paragraph is similar to {most_similar_chapter} with a similarity score of {similarity_score:.2f}.")
+
+            dframe = pd.read_csv(quetionsFile)
+
+            print("Most similar chapter:", most_similar_chapter)
+            print(dframe)
+            chapter_allQuestions = dframe[dframe['chapter'] == most_similar_chapter]
+            # print(chapter_allQuestions)
+            quetion_Image = chapter_allQuestions['questionImage'].tolist()
+            ans = chapter_allQuestions['ans'].tolist()
+
+            
+
+            # Convert the arrays to lists and return them
+            result = {"quetion_Image": quetion_Image, "ans": ans}
+            return result
+        else:
+            print("The paragraph is not similar to any chapter.")
+            return "invalid Text"
+    else:
+        df = pd.read_csv(TotalMathsMergedData)
+        df['Tokens'] = df['Tokens'].astype(str)
+        # function call of image to text
+        ExtractedText = ""  # Replace with actual extracted text
+        most_similar_chapter, similarity_score = check_paragraph_similarity(ExtractedText, df)
+
+        if similarity_score > 0.5:
+            print(f"The paragraph is similar to Chapter {most_similar_chapter} with a similarity score of {similarity_score:.2f}.")
+            dframe = pd.read_csv(quetionsFile)
+            chapter_allQuestions = dframe[dframe['chapter'] == most_similar_chapter]
+            quetion_Image = chapter_allQuestions['questionImage'].tolist()
+            ans = chapter_allQuestions['ans'].tolist()
+
+            # Convert the arrays to lists and return them
+            result = {"quetion_Image": quetion_Image, "ans": ans}
+            return result
+        else:
+            print("The paragraph is not similar to any chapter.")
+            return "invalid Text"
+
+def phy_data(file,paragraph):
+   
+
+    # Load the CSV file
+    df = pd.read_csv(file)
+    
+    # Extract necessary columns
+    questions = df['question']
+    images = df['image']
+    answers = df['ans']
+   
+
+    # Preprocess the input text and questions
+    def preprocess(text):
+        tokens = nltk.word_tokenize(text)
+        return ' '.join(tokens)
+
+    preprocessed_questions = [preprocess(str(question)) for question in questions]
+    preprocessed_paragraph = preprocess(paragraph)
+
+    # Calculate TF-IDF vectors and cosine similarity
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(preprocessed_questions + [preprocessed_paragraph])
+    similarity_matrix = cosine_similarity(vectors[-1], vectors[:-1])
+
+    # Sort and filter the results based on the similarity scores
+    threshold = 0.2 
+    sorted_indices = similarity_matrix[0].argsort()[::-1]
+    sorted_questions = [(i, questions[i], similarity_matrix[0][i]) for i in sorted_indices]
+
+    top_n = 10
+    response = {}
+    suggestions = []
+    
+    # Prepare the response with the top N suggestions including question, image, and answer
+    for i, (index, question, score) in enumerate(sorted_questions[:top_n], 1):
+        if score > threshold:
+            suggestions.append({
+                "question": question,
+                "score": score,
+                "ans": answers[index],
+                "image": images[index]
+            })
+
+    # Return the suggestions or a message if no relevant data is found
+    if suggestions:
+        response['suggestions'] = suggestions
+    else:
+        response['message'] = "No related data found"
+
+    return jsonify(response)
+
+def phy_NEET_data(file, paragraph):
+
+    # Load the CSV file
+    df = pd.read_csv(file)
+    
+    # Extract necessary columns
+    questions = df['question']
+    images = df['image']
+    answers = df['ans']
+  
+
+    # Preprocess the input text and questions
+    def preprocess(text):
+        tokens = nltk.word_tokenize(text)
+        return ' '.join(tokens)
+
+    preprocessed_questions = [preprocess(str(question)) for question in questions]
+    preprocessed_paragraph = preprocess(paragraph)
+
+    # Calculate TF-IDF vectors and cosine similarity
+    vectorizer = TfidfVectorizer()
+    vectors = vectorizer.fit_transform(preprocessed_questions + [preprocessed_paragraph])
+    similarity_matrix = cosine_similarity(vectors[-1], vectors[:-1])
+
+    # Sort and filter the results based on the similarity scores
+    threshold = 0.2 
+    sorted_indices = similarity_matrix[0].argsort()[::-1]
+    sorted_questions = [(i, questions[i], similarity_matrix[0][i]) for i in sorted_indices]
+
+    top_n = 10
+    response = {}
+    suggestions = []
+    
+    # Prepare the response with the top N suggestions including question, image, and answer
+    for i, (index, question, score) in enumerate(sorted_questions[:top_n], 1):
+        if score > threshold:
+            suggestions.append({
+                "question": question,
+                "score": score,
+                "ans": answers[index],
+                "image": images[index]
+            })
+
+    # Return the suggestions or a message if no relevant data is found
+    if suggestions:
+        response['suggestions'] = suggestions
+    else:
+        response['message'] = "No related data found"
+
+    return jsonify(response)
+
+class OS(enum.Enum):
+    Mac = "Mac"
+    Window = "Window"
+
+class Lang(enum.Enum):
+    ENG = "eng"
+    # Add more languages as needed
+
+class TextExtractor:
+    def __init__(self, os_type: OS):
+        print(f"Running on {os_type.value}")
+        
+        if os_type == OS.Window:
+            print(1)
+            windows_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+            if os.path.exists(windows_path):
+                print(2)
+                pytesseract.tesseract_cmd = windows_path
+            else:
+                raise FileNotFoundError(f"Tesseract not found at {windows_path}. Please install it and provide the correct path.")
+        
+        elif os_type == OS.Mac:
+            print("Assuming Tesseract is installed in the PATH environment variable on Mac.")
+            # Add Mac-specific configuration if needed
+
+    def extract_text(self, image_path: str) -> str:
+        try:
+            img = Image.open(image_path)
+            extracted_text = pytesseract.image_to_string(img, lang=Lang.ENG.value)
+            return extracted_text
+        except Exception as e:
+            return f"Error occurred: {e}"
+
 app = Flask(__name__)
 
 import pandas as pd
