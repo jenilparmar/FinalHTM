@@ -150,7 +150,6 @@ def bioData():
 
     paragraph = posted_data['text']
     
-    
     return bio_data(file,paragraph)
 
 @app.route('/NEET_chem',methods=['POST'])

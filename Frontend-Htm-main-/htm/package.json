@@ -19,9 +19,9 @@
     "mongoose": "^8.5.3",
     "next": "14.2.6",
     "radix-ui": "^1.0.1",
-    "react": "^18",
+    "react": "^17.0.2",
     "react-animated-3d-card": "^1.0.2",
-    "react-dom": "^18",
+    "react-dom": "^17.0.2",
     "react-tinder-card": "^1.6.4"
   },
   "devDependencies": {
