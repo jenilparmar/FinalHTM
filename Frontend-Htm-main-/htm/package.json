@@ -17,7 +17,7 @@
     "firebase": "^10.13.0",
     "lucide-react": "^0.439.0",
     "mongoose": "^8.5.3",
-    "next": "14.2.6",
+    "next": "^14.2.17",
     "radix-ui": "^1.0.1",
     "react": "^18.2.0",
     "react-animated-3d-card": "^1.0.2",
